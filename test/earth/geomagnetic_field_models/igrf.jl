@@ -215,6 +215,85 @@ end
         @test Ba == Bn
     end
 
+    # Reduced degree
+    # --------------------------------------------------------------------------
+
+    # Geocentric
+    # ----------
+
+    # If `max_degree` is equal or lower than 0, then the results must be the
+    # same as if `max_degree` is 1.
+    Bref = igrf(2020.4452, 6515e3, 0.45, -1.34; max_degree =  1)
+    B1   = igrf(2020.4452, 6515e3, 0.45, -1.34; max_degree =  0)
+    B2   = igrf(2020.4452, 6515e3, 0.45, -1.34; max_degree = -1)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # If `max_degree` is higher than the number of available coefficients, then
+    # it must be clamped.
+    Bref = igrf(2020.4452, 6515e3, 0.45, -1.34)
+    B1   = igrf(2020.4452, 6515e3, 0.45, -1.34; max_degree = 13)
+    B2   = igrf(2020.4452, 6515e3, 0.45, -1.34; max_degree = 22)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # The difference between the field computed using 13 or 12 coefficients must
+    # be small.
+    B1 = igrf(2020.4452, 6515e3, 0.45, -1.34)
+    B2 = igrf(2020.4452, 6515e3, 0.45, -1.34; max_degree = 12)
+
+    @test acosd(dot(B1 / norm(B1), B2 / norm(B2))) < 0.01
+
+    # Testing the version in which we provide the matrices to the associated
+    # Legendre functions.
+    Pred  = zeros(5, 5)
+    dPred = zeros(5, 5)
+
+    Bref = igrf(2020.4452, 6515e3, 0.45, -1.34; max_degree = 4)
+    B1   = igrf(2020.4452, 6515e3, 0.45, -1.34, Pred, dPred; max_degree = 4)
+
+    @test B1 == Bref
+
+    # Geodetic
+    # --------
+
+    # If `max_degree` is equal or lower than 0, then the results must be the
+    # same as if `max_degree` is 1.
+    Bref = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic); max_degree =  1)
+    B1   = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic); max_degree =  0)
+    B2   = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic); max_degree = -1)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # If `max_degree` is higher than the number of available coefficients, then
+    # it must be clamped.
+    Bref = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic))
+    B1   = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic); max_degree = 13)
+    B2   = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic); max_degree = 22)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # The difference between the field computed using 13 or 12 coefficients must
+    # be small.
+    B1 = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic))
+    B2 = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic); max_degree = 12)
+
+    @test acosd(dot(B1 / norm(B1), B2 / norm(B2))) < 0.01
+
+    # Testing the version in which we provide the matrices to the associated
+    # Legendre functions.
+    Pred  = zeros(5, 5)
+    dPred = zeros(5, 5)
+
+    Bref = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic); max_degree = 4)
+    B1   = igrf(2020.4452, 752e3, 0.45, -1.34, Val(:geodetic), Pred, dPred; max_degree = 4)
+
+    @test B1 == Bref
+
     # Errors
     # --------------------------------------------------------------------------
 
@@ -232,6 +311,20 @@ end
     @test_throws ErrorException igrf(2020, R0+140e3, pi/4, pi/2, Val(:geocentric), P₀, dP₁)
     @test_throws ErrorException igrf(2020, R0+140e3, pi/4, pi/2, Val(:geocentric), P₁, dP₀)
     @test_nowarn                igrf(2020, R0+140e3, pi/4, pi/2, Val(:geocentric), P₁, dP₁)
+
+    # Issues
+    # --------------------------------------------------------------------------
+
+    # Calculation close to the geographic pole.
+    B = igrf(2019, 7150e3, π / 2 - 1e-15, 0.55)
+    @test B[1] ≈ 907.752507827486
+    @test B[2] ≈ 173.19657970935657
+    @test B[3] ≈ 41139.95114358637
+
+    B = igrf(2019, 7150e3, π / 2, 0.55)
+    @test B[1] ≈ 907.7525078274671
+    @test B[2] ≈ 173.1965797093516
+    @test B[3] ≈ 41139.95114358636
 end
 
 # Function igrfd
@@ -311,6 +404,85 @@ end
         @test f   ≈ ft atol=3e-1
         @test Ba == Bn
     end
+
+    # Reduced degree
+    # --------------------------------------------------------------------------
+
+    # Geocentric
+    # ----------
+
+    # If `max_degree` is equal or lower than 0, then the results must be the
+    # same as if `max_degree` is 1.
+    Bref = igrfd(2020.4452, 6515e3, -19, 106; max_degree =  1)
+    B1   = igrfd(2020.4452, 6515e3, -19, 106; max_degree =  0)
+    B2   = igrfd(2020.4452, 6515e3, -19, 106; max_degree = -1)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # If `max_degree` is higher than the number of available coefficients, then
+    # it must be clamped.
+    Bref = igrfd(2020.4452, 6515e3, -19, 106)
+    B1   = igrfd(2020.4452, 6515e3, -19, 106; max_degree = 13)
+    B2   = igrfd(2020.4452, 6515e3, -19, 106; max_degree = 22)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # The difference between the field computed using 13 or 12 coefficients must
+    # be small.
+    B1 = igrfd(2020.4452, 6515e3, -19, 106)
+    B2 = igrfd(2020.4452, 6515e3, -19, 106; max_degree = 12)
+
+    @test acosd(dot(B1 / norm(B1), B2 / norm(B2))) < 0.01
+
+    # Testing the version in which we provide the matrices to the associated
+    # Legendre functions.
+    Pred  = zeros(5, 5)
+    dPred = zeros(5, 5)
+
+    Bref = igrfd(2020.4452, 6515e3, -19, 106; max_degree = 4)
+    B1   = igrfd(2020.4452, 6515e3, -19, 106, Pred, dPred; max_degree = 4)
+
+    @test B1 == Bref
+
+    # Geodetic
+    # --------
+
+    # If `max_degree` is equal or lower than 0, then the results must be the
+    # same as if `max_degree` is 1.
+    Bref = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic); max_degree =  1)
+    B1   = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic); max_degree =  0)
+    B2   = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic); max_degree = -1)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # If `max_degree` is higher than the number of available coefficients, then
+    # it must be clamped.
+    Bref = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic))
+    B1   = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic); max_degree = 13)
+    B2   = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic); max_degree = 22)
+
+    @test Bref == B1
+    @test Bref == B2
+
+    # The difference between the field computed using 13 or 12 coefficients must
+    # be small.
+    B1 = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic))
+    B2 = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic); max_degree = 12)
+
+    @test acosd(dot(B1 / norm(B1), B2 / norm(B2))) < 0.01
+
+    # Testing the version in which we provide the matrices to the associated
+    # Legendre functions.
+    Pred  = zeros(5, 5)
+    dPred = zeros(5, 5)
+
+    Bref = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic); max_degree = 4)
+    B1   = igrfd(2020.4452, 752e3, -19, 106, Val(:geodetic), Pred, dPred; max_degree = 4)
+
+    @test B1 == Bref
 
     # Errors
     # --------------------------------------------------------------------------

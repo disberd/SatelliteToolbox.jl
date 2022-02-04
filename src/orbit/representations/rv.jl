@@ -29,7 +29,7 @@
 export kepler_to_rv, rv_to_kepler
 
 """
-    kepler_to_rv(a::Number, e::Number, i::Number, Ω::Number, ω::Number, f::Number)
+    kepler_to_rv(a::T1, e::T2, i::T3, Ω::T4, ω::T5, f::T6) where {T1, T2, T3, T4, T5, T6}
     kepler_to_rv(k::KeplerianElements)
 
 Convert the Keplerian elements (`a`, `e`, `i`, `Ω`, `ω`, and `f`) to a Cartesian
@@ -39,57 +39,65 @@ structure.
 
 # Args
 
-* `a`: Semi-major axis [m].
-* `e`: Eccentricity.
-* `i`: Inclination [rad].
-* `Ω`: Right ascension of the ascending node [rad].
-* `ω`: Argument of perigee [rad].
-* `f`: True anomaly [rad].
+- `a`: Semi-major axis [m].
+- `e`: Eccentricity.
+- `i`: Inclination [rad].
+- `Ω`: Right ascension of the ascending node [rad].
+- `ω`: Argument of perigee [rad].
+- `f`: True anomaly [rad].
 
 # Returns
 
-* The position vector represented in the inertial reference frame [m].
-* The velocity vector represented in the inertial reference frame [m].
+- The position vector represented in the inertial reference frame [m].
+- The velocity vector represented in the inertial reference frame [m].
+
+# Remarks
+
+This algorithm was adapted from **[1]** and **[2]**(p. 37-38).
 
 # References
 
-This algorithm was adapted from [1] and [3, p. 37-38].
-
+- **[1]**: Schwarz, R (2014). Memorandum No. 2: Cartesian State Vectors to
+    Keplerian Orbit Elements. Available at www.rene-schwarz.com
+- **[2]**: Kuga, H. K., Carrara, V., Rao, K. R (2005). Introdução à Mecânica
+    Orbital. 2ª ed. Instituto Nacional de Pesquisas Espaciais.
 """
-function kepler_to_rv(a::Number,
-                      e::Number,
-                      i::Number,
-                      Ω::Number,
-                      ω::Number,
-                      f::Number)
+function kepler_to_rv(
+    a::T1,
+    e::T2,
+    i::T3,
+    Ω::T4,
+    ω::T5,
+    f::T6
+) where {T1, T2, T3, T4, T5, T6}
+    T = promote_type(T1, T2, T3, T4, T5, T6)
+
     # Check eccentricity.
-    if !(0 <= e < 1)
-        throw(ArgumentError("Eccentricity must be in the interval [0,1)."))
-    end
+    !(0 <= e < 1) && throw(ArgumentError("Eccentricity must be in the interval [0,1)."))
 
     # Auxiliary variables.
     sin_f, cos_f = sincos(f)
 
     # Compute the geocentric distance.
-    r = a*(1-e^2)/(1+e*cos_f)
+    r = a * (1 - e^2) / (1 + e * cos_f)
 
     # Compute the position vector in the orbit plane, defined as:
     #   - The X axis points towards the perigee;
     #   - The Z axis is perpendicular to the orbital plane (right-hand);
     #   - The Y axis completes a right-hand coordinate system.
-    r_o = SVector{3}(r*cos_f, r*sin_f, 0)
+    r_o = SVector{3, T}(r * cos_f, r * sin_f, 0)
 
     # Compute the velocity vector in the orbit plane without perturbations.
     n = angvel(a, e, i, :J0)
-    v_o = n*a/sqrt(1-e^2)*SVector{3}(-sin_f, e+cos_f, 0)
+    v_o = n * a / sqrt(1 - e^2) * SVector{3, T}(-sin_f, e + cos_f, 0)
 
     # Compute the matrix that rotates the orbit reference frame into the
     # inertial reference frame.
     Dio = angle_to_dcm(-ω, -i, -Ω, :ZXZ)
 
     # Compute the position and velocity represented in the inertial frame.
-    r_i = Dio*r_o
-    v_i = Dio*v_o
+    r_i = Dio * r_o
+    v_i = Dio * v_o
 
     return r_i, v_i
 end
@@ -116,55 +124,61 @@ An instance of the structure `KeplerianElements` [SI units].
 
 # Remarks
 
+The algorithm was adapted from **[1]**.
+
 The special cases are treated as follows:
 
-* **Circular and equatorial**: the right ascension of the ascending node and the
-  argument of perigee are set to 0. Hence, the true anomaly is equal to the true
-  longitude.
-* **Elliptical and equatorial**: the right ascension of the ascending node is
-  set to 0. Hence, the argument of perigee is equal to the longitude of
-  periapsis.
-* **Circular and inclined**: the argument of perigee is set to 0. Hence, the
-  true anomaly is equal to the argument of latitude.
+- **Circular and equatorial**: the right ascension of the ascending node and the
+    argument of perigee are set to 0. Hence, the true anomaly is equal to the
+    true longitude.
+- **Elliptical and equatorial**: the right ascension of the ascending node is
+    set to 0. Hence, the argument of perigee is equal to the longitude of
+    periapsis.
+- **Circular and inclined**: the argument of perigee is set to 0. Hence, the
+    true anomaly is equal to the argument of latitude.
 
 # References
 
-The algorithm was adapted from [1].
-
+- **[1]**: Schwarz, R (2014). Memorandum No. 2: Cartesian State Vectors to
+    Keplerian Orbit Elements. Available at www.rene-schwarz.com
 """
-function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
+function rv_to_kepler(
+    r_i::AbstractVector{T1},
+    v_i::AbstractVector{T2},
+    t::Number = 0
+) where {T1, T2}
     # Check inputs.
     length(r_i) != 3 && error("The vector r_i must have 3 dimensions.")
     length(v_i) != 3 && error("The vector v_i must have 3 dimensions.")
 
-    @inbounds begin
+    # Obtain the type of the output elements.
+    T = float(promote_type(T1, T2))
 
+    @inbounds begin
         # Position and velocity vector norms and auxiliary dot products.
-        r2 = dot(r_i,r_i)
-        v2 = dot(v_i,v_i)
+        r2 = T(dot(r_i, r_i))
+        v2 = T(dot(v_i, v_i))
 
         r  = sqrt(r2)
         v  = sqrt(v2)
 
-        rv = dot(r_i,v_i)
+        rv = T(dot(r_i, v_i))
 
-        # The type of `r` will be the type of the orbit elements.
-        T   = typeof(r)
         Tm0 = T(m0)
 
         # Angular momentum vector.
-        h_i = cross( r_i, v_i )
+        h_i = r_i × v_i
         h   = norm(h_i)
 
         # Vector that points to the right ascension of the ascending node (RAAN).
-        n_i = SVector{3}(0,0,1) × h_i
+        n_i = SVector{3}(0, 0, 1) × h_i
         n   = norm(n_i)
 
         # Eccentricity vector.
-        e_i = ( (v2 - Tm0/r)*r_i - rv*v_i )/Tm0
+        e_i = ((v2 - Tm0 / r) * r_i - rv * v_i ) / Tm0
 
         # Orbit energy.
-        ξ = v2/2 - Tm0/r
+        ξ = v2 / 2 - Tm0 / r
 
         # Eccentricity
         # ============
@@ -174,8 +188,8 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
         # Semi-major axis
         # ===============
 
-        if abs(ecc) <= 1.0-1e-6
-            a = -Tm0/(2ξ)
+        if abs(ecc) <= 1.0 - 1e-6
+            a = -Tm0 / (2ξ)
         else
             error("Could not convert the provided Cartesian values to Kepler elements.\n" *
                   "The computed eccentricity was not between 0 and 1");
@@ -184,7 +198,7 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
         # Inclination
         # ===========
 
-        cos_i = h_i[3]/h
+        cos_i = h_i[3] / h
         cos_i = abs(cos_i) > 1 ? sign(cos_i) : cos_i
         i     = acos(cos_i)
 
@@ -209,16 +223,16 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
                 # Argument of Perigee
                 # ===================
 
-                cos_ω = e_i[1]/ecc
+                cos_ω = e_i[1] / ecc
                 cos_ω = abs(cos_ω) > 1 ? sign(cos_ω) : cos_ω
                 ω     = acos(cos_ω)
 
-                (e_i[3] < 0) && (ω = T(2π) - ω)
+                (e_i[2] < 0) && (ω = T(2π) - ω)
 
                 # True anomaly
                 # ============
 
-                cos_v = dot(e_i,r_i)/(ecc*r)
+                cos_v = dot(e_i, r_i) / (ecc * r)
                 cos_v = abs(cos_v) > 1 ? sign(cos_v) : cos_v
                 v     = acos(cos_v)
 
@@ -236,7 +250,7 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
                 # True anomaly
                 # ============
 
-                cos_v = r_i[1]/r
+                cos_v = r_i[1] / r
                 cos_v = abs(cos_v) > 1 ? sign(cos_v) : cos_v
                 v     = acos(cos_v)
 
@@ -250,7 +264,7 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
             # Right Ascension of the Ascending Node.
             # ======================================
 
-            cos_Ω = n_i[1]/n
+            cos_Ω = n_i[1] / n
             cos_Ω = abs(cos_Ω) > 1 ? sign(cos_Ω) : cos_Ω
             Ω     = acos(cos_Ω)
 
@@ -269,7 +283,7 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
                 # True anomaly
                 # ============
 
-                cos_v = dot(n_i,r_i)/(n*r)
+                cos_v = dot(n_i, r_i) / (n*r)
                 cos_v = abs(cos_v) > 1 ? sign(cos_v) : cos_v
                 v     = acos(cos_v)
 
@@ -279,7 +293,7 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
                 # Argument of Perigee
                 # ===================
 
-                cos_ω = dot(n_i,e_i)/(n*ecc)
+                cos_ω = dot(n_i, e_i) / (n * ecc)
                 cos_ω = abs(cos_ω) > 1 ? sign(cos_ω) : cos_ω
                 ω     = acos(cos_ω)
 
@@ -288,7 +302,7 @@ function rv_to_kepler(r_i::AbstractVector, v_i::AbstractVector, t::Number = 0)
                 # True anomaly
                 # ============
 
-                cos_v = dot(e_i,r_i)/(ecc*r)
+                cos_v = dot(e_i, r_i) / (ecc * r)
                 cos_v = abs(cos_v) > 1 ? sign(cos_v) : cos_v
                 v     = acos(cos_v)
 

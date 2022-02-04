@@ -53,6 +53,12 @@ println("")
 end
 println("")
 
+@testset "Conversion from osculating to mean elements" begin
+    include("./orbit/mean_elements/j2osc.jl")
+    include("./orbit/mean_elements/sgp4.jl")
+end
+println("")
+
 @testset "Orbit propagators" begin
     cd("./orbit/propagators")
     include("./orbit/propagators/sgp4.jl")
